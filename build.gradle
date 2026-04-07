@@ -62,6 +62,10 @@ compileJava {
     options.release = 17
 }
 
+javadoc {
+    classpath += configurations.javaCompileOnly
+}
+
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
