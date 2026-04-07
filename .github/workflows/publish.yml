@@ -35,9 +35,9 @@ jobs:
         run: echo "RELEASE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
 
       - name: Publish to Maven Central
-        run: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository -Pversion=${{ env.RELEASE_VERSION }}
+        run: ./gradlew publishAllPublicationsToMavenCentralRepository -Pversion=${{ env.RELEASE_VERSION }}
         env:
-          ORG_GRADLE_PROJECT_signingKey: ${{ secrets.SIGNING_KEY }}
-          ORG_GRADLE_PROJECT_signingPassword: ${{ secrets.SIGNING_PASSWORD }}
-          ORG_GRADLE_PROJECT_ossrhUsername: ${{ secrets.OSSRH_USERNAME }}
-          ORG_GRADLE_PROJECT_ossrhPassword: ${{ secrets.OSSRH_PASSWORD }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.SIGNING_KEY }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.SIGNING_PASSWORD }}
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}

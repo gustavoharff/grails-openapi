@@ -16,8 +16,7 @@ plugins {
     id "idea"
     id "eclipse"
     id "maven-publish"
-    id "signing"
-    id "io.github.gradle-nexus.publish-plugin" version "2.0.0"
+    id "com.vanniktech.maven.publish" version "0.36.0"
 }
 
 // Not Published to Gradle Plugin Portal
@@ -52,11 +51,6 @@ dependencies {
     testImplementation "org.objenesis:objenesis"
 }
 
-java {
-    withJavadocJar()
-    withSourcesJar()
-}
-
 compileJava {
     classpath += configurations.javaCompileOnly
     options.release = 17
@@ -70,56 +64,37 @@ tasks.withType(Test).configureEach {
     useJUnitPlatform()
 }
 
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-            artifactId = "grails-openapi"
+mavenPublishing {
+    coordinates("io.github.gustavoharff", "grails-openapi", version)
 
-            pom {
-                name = "Grails OpenAPI Plugin"
-                description = "OpenAPI specification generator for Grails applications"
-                url = "https://github.com/gustavoharff/grails-openapi"
-                inceptionYear = "2025"
+    publishToMavenCentral()
 
-                licenses {
-                    license {
-                        name = "The Apache License, Version 2.0"
-                        url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
-                    }
-                }
+    signAllPublications()
 
-                developers {
-                    developer {
-                        id = "gustavoharff"
-                        name = "Gustavo Schinvelski"
-                    }
-                }
+    pom {
+        name = "Grails OpenAPI Plugin"
+        description = "OpenAPI specification generator for Grails applications"
+        url = "https://github.com/gustavoharff/grails-openapi"
+        inceptionYear = "2025"
 
-                scm {
-                    connection = "scm:git:git://github.com/gustavoharff/grails-openapi.git"
-                    developerConnection = "scm:git:ssh://github.com/gustavoharff/grails-openapi.git"
-                    url = "https://github.com/gustavoharff/grails-openapi"
-                }
+        licenses {
+            license {
+                name = "The Apache License, Version 2.0"
+                url = "https://www.apache.org/licenses/LICENSE-2.0.txt"
             }
         }
-    }
-}
 
-signing {
-    def signingKey = findProperty("signingKey")
-    def signingPassword = findProperty("signingPassword")
-    useInMemoryPgpKeys(signingKey, signingPassword)
-    sign publishing.publications.mavenJava
-}
+        developers {
+            developer {
+                id = "gustavoharff"
+                name = "Gustavo Harff"
+            }
+        }
 
-nexusPublishing {
-    repositories {
-        sonatype {
-            nexusUrl = uri("https://s01.oss.sonatype.org/service/local/")
-            snapshotRepositoryUrl = uri("https://s01.oss.sonatype.org/content/repositories/snapshots/")
-            username = findProperty("ossrhUsername") ?: System.getenv("OSSRH_USERNAME")
-            password = findProperty("ossrhPassword") ?: System.getenv("OSSRH_PASSWORD")
+        scm {
+            connection = "scm:git:git://github.com/gustavoharff/grails-openapi.git"
+            developerConnection = "scm:git:ssh://github.com/gustavoharff/grails-openapi.git"
+            url = "https://github.com/gustavoharff/grails-openapi"
         }
     }
 }
