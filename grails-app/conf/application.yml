@@ -1,0 +1,9 @@
+info:
+  app:
+    name: '@info.app.name@'
+    version: '@info.app.version@'
+    grailsVersion: '@info.app.grailsVersion@'
+grails:
+  codegen:
+    defaultPackage: dev.harff.grails.openapi
+  profile: plugin
