@@ -33,6 +33,7 @@ class ControllerSourceAnalyzer {
     private static final Set<String> UNTYPED = ['Object', 'def', 'java.lang.Object'] as Set
 
     private final Map<String, Map<String, RespondTypeInfo>> cache = [:]
+    private Map<String, String> currentImports = [:]
 
     Map<String, RespondTypeInfo> analyze(Class<?> controllerClass) {
         String key = controllerClass.name
@@ -45,6 +46,8 @@ class ControllerSourceAnalyzer {
     private Map<String, RespondTypeInfo> doAnalyze(Class<?> controllerClass) {
         File sourceFile = findSourceFile(controllerClass)
         if (!sourceFile?.exists()) return [:]
+
+        currentImports = parseImports(sourceFile.text)
 
         List<ASTNode> nodes
         try {
@@ -217,11 +220,31 @@ class ControllerSourceAnalyzer {
             if (found) return found
         } catch (Exception ignored) {}
 
+        ClassLoader cl = Thread.currentThread().contextClassLoader
+
+        String fullName = currentImports[simpleName]
+        if (fullName) {
+            try { return cl.loadClass(fullName) } catch (ClassNotFoundException ignored) {}
+        }
+
         try {
-            return Thread.currentThread().contextClassLoader.loadClass(simpleName)
+            return cl.loadClass(simpleName)
         } catch (ClassNotFoundException ignored) {}
 
         return null
+    }
+
+    static Map<String, String> parseImports(String source) {
+        Map<String, String> imports = [:]
+        source.eachLine { String line ->
+            def m = line.trim() =~ /^import\s+([\w.]+?)(\s+as\s+(\w+))?$/
+            if (m.matches()) {
+                String fullName = m[0][1]
+                String alias = m[0][3] ?: fullName.tokenize('.').last()
+                imports[alias] = fullName
+            }
+        }
+        return imports
     }
 
     private static List<Expression> extractArgs(MethodCallExpression call) {

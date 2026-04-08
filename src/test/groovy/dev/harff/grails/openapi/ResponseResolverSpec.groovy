@@ -212,6 +212,59 @@ class ResponseResolverSpec extends Specification {
         schemas.containsKey('Item')
     }
 
+    def "wrapper response class is registered in schemas map"() {
+        given:
+        def info = new EndpointInfo(responseType: PagedResult, responseIsList: false)
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        resolver.resolve(info, ep)
+
+        then:
+        schemas.containsKey('PagedResult')
+    }
+
+    def "wrapper response class schema has data and paging properties"() {
+        given:
+        def info = new EndpointInfo(responseType: PagedResult, responseIsList: false)
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        resolver.resolve(info, ep)
+
+        then:
+        def schema = schemas['PagedResult']
+        schema != null
+        schema.properties.containsKey('data')
+        schema.properties.containsKey('paging')
+    }
+
+    def "wrapper response class data property is typed as array"() {
+        given:
+        def info = new EndpointInfo(responseType: PagedResult, responseIsList: false)
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        resolver.resolve(info, ep)
+
+        then:
+        schemas['PagedResult'].properties.data.type == 'array'
+    }
+
+    def "wrapper response class schema is referenced in response (not inlined as array)"() {
+        given:
+        def info = new EndpointInfo(responseType: PagedResult, responseIsList: false)
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        def responses = resolver.resolve(info, ep)
+
+        then:
+        def schema = responses['200'].content.'application/json'.schema
+        schema.'$ref'.contains('PagedResult')
+        schema.type == null
+    }
+
     // ---- Helpers ----
 
     private static ResolvedEndpoint ep(String method, String action, String path, String controller) {
@@ -220,5 +273,23 @@ class ResponseResolverSpec extends Specification {
 
     private static GrailsClass mockDomainArtefact(String simpleName) {
         [getShortName: { simpleName }] as GrailsClass
+    }
+
+    // ---- Fixture classes ----
+
+    static class PagedResult {
+        List data
+        Paging paging
+
+        List getData() { data }
+        Paging getPaging() { paging }
+    }
+
+    static class Paging {
+        int total
+        int page
+
+        int getTotal() { total }
+        int getPage() { page }
     }
 }
