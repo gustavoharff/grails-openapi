@@ -7,8 +7,16 @@ A Gradle plugin for Grails applications that automatically generates [OpenAPI 3.
 Add the plugin to your Grails application's `build.gradle`:
 
 ```gradle
-plugins {
-    id "dev.harff.grails.openapi" version "0.1.0"
+buildscript {
+    dependencies {
+        classpath "io.github.gustavoharff:grails-openapi:0.1.0"
+    }
+}
+```
+
+```gradle
+dependencies {
+    implementation("io.github.gustavoharff:grails-openapi:0.1.0")
 }
 ```
 
