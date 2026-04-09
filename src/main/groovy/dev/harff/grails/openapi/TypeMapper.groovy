@@ -44,6 +44,7 @@ class TypeMapper {
         if (schemas != null && type != Object) {
             String schemaName = type.simpleName
             if (!schemas.containsKey(schemaName)) {
+                schemas[schemaName] = [type: 'object'] // placeholder prevents infinite recursion on circular refs
                 schemas[schemaName] = SchemaBuilder.buildObjectSchema(type, [:], schemas)
             }
             return ['$ref': "#/components/schemas/${schemaName}".toString()]
