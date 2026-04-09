@@ -87,8 +87,10 @@ class ControllerSourceAnalyzer {
     private RespondTypeInfo walkBlock(BlockStatement block) {
         // varDecls: variable name → RHS expression (for def/untyped vars)
         // varTypes: variable name → declared simple type name (for explicitly typed vars)
+        // varGenericArgs: variable name → list of resolved generic type arguments
         Map<String, Expression> varDecls = [:]
         Map<String, String> varTypes = [:]
+        Map<String, List<Class<?>>> varGenericArgs = [:]
 
         for (Statement s : block.statements) {
             if (s instanceof ExpressionStatement) {
@@ -101,42 +103,44 @@ class ControllerSourceAnalyzer {
                         String declaredType = lv.type?.nameWithoutPackage
                         if (declaredType && !UNTYPED.contains(declaredType)) {
                             varTypes[lv.name] = declaredType
+                            List<Class<?>> typeArgs = extractGenericArgs(lv.type)
+                            if (typeArgs) varGenericArgs[lv.name] = typeArgs
                         }
                     }
                 }
             }
 
-            RespondTypeInfo info = findRespondInStatement(s, varDecls, varTypes)
+            RespondTypeInfo info = findRespondInStatement(s, varDecls, varTypes, varGenericArgs)
             if (info) return info
         }
         return null
     }
 
-    private RespondTypeInfo findRespondInStatement(Statement stmt, Map<String, Expression> varDecls, Map<String, String> varTypes) {
+    private RespondTypeInfo findRespondInStatement(Statement stmt, Map<String, Expression> varDecls, Map<String, String> varTypes, Map<String, List<Class<?>>> varGenericArgs) {
         if (stmt instanceof ExpressionStatement) {
-            return matchRespondCall(((ExpressionStatement) stmt).expression, varDecls, varTypes)
+            return matchRespondCall(((ExpressionStatement) stmt).expression, varDecls, varTypes, varGenericArgs)
         }
         if (stmt instanceof ReturnStatement) {
-            return matchRespondCall(((ReturnStatement) stmt).expression, varDecls, varTypes)
+            return matchRespondCall(((ReturnStatement) stmt).expression, varDecls, varTypes, varGenericArgs)
         }
         if (stmt instanceof IfStatement) {
             IfStatement ifStmt = (IfStatement) stmt
-            RespondTypeInfo info = findRespondInBlock(ifStmt.ifBlock, varDecls, varTypes)
+            RespondTypeInfo info = findRespondInBlock(ifStmt.ifBlock, varDecls, varTypes, varGenericArgs)
             if (info) return info
-            if (ifStmt.elseBlock) return findRespondInBlock(ifStmt.elseBlock, varDecls, varTypes)
+            if (ifStmt.elseBlock) return findRespondInBlock(ifStmt.elseBlock, varDecls, varTypes, varGenericArgs)
         }
         if (stmt instanceof TryCatchStatement) {
-            return findRespondInBlock(((TryCatchStatement) stmt).tryStatement, varDecls, varTypes)
+            return findRespondInBlock(((TryCatchStatement) stmt).tryStatement, varDecls, varTypes, varGenericArgs)
         }
         return null
     }
 
-    private RespondTypeInfo findRespondInBlock(Statement stmt, Map<String, Expression> varDecls, Map<String, String> varTypes) {
+    private RespondTypeInfo findRespondInBlock(Statement stmt, Map<String, Expression> varDecls, Map<String, String> varTypes, Map<String, List<Class<?>>> varGenericArgs) {
         if (stmt instanceof BlockStatement) return walkBlock((BlockStatement) stmt)
-        return findRespondInStatement(stmt, varDecls, varTypes)
+        return findRespondInStatement(stmt, varDecls, varTypes, varGenericArgs)
     }
 
-    private RespondTypeInfo matchRespondCall(Expression expr, Map<String, Expression> varDecls, Map<String, String> varTypes) {
+    private RespondTypeInfo matchRespondCall(Expression expr, Map<String, Expression> varDecls, Map<String, String> varTypes, Map<String, List<Class<?>>> varGenericArgs) {
         if (!(expr instanceof MethodCallExpression)) return null
         MethodCallExpression call = (MethodCallExpression) expr
         if (call.methodAsString != 'respond') return null
@@ -147,15 +151,19 @@ class ControllerSourceAnalyzer {
         // respond([key: val]) or respond([:]) — Map literal, skip
         if (args[0] instanceof MapExpression) return null
 
-        return resolveType(args[0], varDecls, varTypes)
+        return resolveType(args[0], varDecls, varTypes, varGenericArgs)
     }
 
-    private RespondTypeInfo resolveType(Expression expr, Map<String, Expression> varDecls, Map<String, String> varTypes) {
-        // new SomeClass(...)
+    private RespondTypeInfo resolveType(Expression expr, Map<String, Expression> varDecls, Map<String, String> varTypes, Map<String, List<Class<?>>> varGenericArgs) {
+        // new SomeClass<T>(...)
         if (expr instanceof ConstructorCallExpression) {
-            String name = ((ConstructorCallExpression) expr).type.nameWithoutPackage
+            ConstructorCallExpression ctor = (ConstructorCallExpression) expr
+            String name = ctor.type.nameWithoutPackage
             Class<?> cls = resolveClass(name)
-            if (cls) return new RespondTypeInfo(type: cls, isList: false)
+            if (cls) {
+                List<Class<?>> typeArgs = extractGenericArgs(ctor.type)
+                return new RespondTypeInfo(type: cls, isList: false, typeArguments: typeArgs)
+            }
         }
 
         // SomeClass.method(...) — static/GORM call on uppercase name
@@ -176,19 +184,30 @@ class ControllerSourceAnalyzer {
         if (expr instanceof VariableExpression) {
             String name = ((VariableExpression) expr).name
 
-            // Declared type (e.g. PaginationResult publications = ...)
+            // Declared type (e.g. PaginationResult<Publication> publications = ...)
             String declaredType = varTypes[name]
             if (declaredType) {
                 Class<?> cls = resolveClass(declaredType)
-                if (cls) return new RespondTypeInfo(type: cls, isList: Collection.isAssignableFrom(cls))
+                if (cls) {
+                    List<Class<?>> typeArgs = varGenericArgs[name] ?: []
+                    return new RespondTypeInfo(type: cls, isList: Collection.isAssignableFrom(cls), typeArguments: typeArgs)
+                }
             }
 
             // Fall back to RHS expression
             Expression rhs = varDecls[name]
-            if (rhs) return resolveType(rhs, varDecls, varTypes)
+            if (rhs) return resolveType(rhs, varDecls, varTypes, varGenericArgs)
         }
 
         return null
+    }
+
+    private List<Class<?>> extractGenericArgs(ClassNode typeNode) {
+        def genericsTypes = typeNode?.genericsTypes
+        if (!genericsTypes) return []
+        return genericsTypes.collect { gt ->
+            resolveClass(gt.type?.nameWithoutPackage)
+        }.findAll { it != null }
     }
 
     private static String upperCaseNameOf(Expression expr) {

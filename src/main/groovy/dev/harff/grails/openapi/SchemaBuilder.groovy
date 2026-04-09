@@ -67,7 +67,7 @@ class SchemaBuilder {
         return [type: 'object', properties: properties]
     }
 
-    static Map<String, Object> buildObjectSchema(Class<?> cls) {
+    static Map<String, Object> buildObjectSchema(Class<?> cls, Map<String, Class<?>> typeBindings = [:]) {
         Map<String, Object> properties = [:]
 
         Class<?> current = cls
@@ -81,7 +81,7 @@ class SchemaBuilder {
                     && field.type != Closure
                     && hasPublicGetter(current, field.name)
                     && !properties.containsKey(field.name)) {
-                    properties[field.name] = TypeMapper.toSchema(field.type, field.genericType)
+                    properties[field.name] = TypeMapper.toSchema(field.type, field.genericType, typeBindings)
                 }
             }
             current = current.superclass

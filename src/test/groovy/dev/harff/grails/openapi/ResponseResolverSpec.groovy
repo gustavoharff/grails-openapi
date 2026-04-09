@@ -265,6 +265,71 @@ class ResponseResolverSpec extends Specification {
         schema.type == null
     }
 
+    def "generic wrapper class with type arguments uses qualified schema name"() {
+        given:
+        def info = new EndpointInfo(
+            responseType: TypedResult,
+            responseIsList: false,
+            responseTypeArguments: [String]
+        )
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        def responses = resolver.resolve(info, ep)
+
+        then:
+        def schema = responses['200'].content.'application/json'.schema
+        schema.'$ref'.contains('TypedResultOfString')
+        schemas.containsKey('TypedResultOfString')
+    }
+
+    def "generic wrapper class resolves TypeVariable fields using type bindings"() {
+        given:
+        def info = new EndpointInfo(
+            responseType: TypedResult,
+            responseIsList: false,
+            responseTypeArguments: [Integer]
+        )
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        resolver.resolve(info, ep)
+
+        then:
+        def schema = schemas['TypedResultOfInteger']
+        schema != null
+        // List<T> with T=Integer → array of integer
+        schema.properties.items.type == 'array'
+        schema.properties.items.items == [type: 'integer', format: 'int32']
+    }
+
+    def "two different bindings for the same generic class create two distinct schemas"() {
+        given:
+        def infoA = new EndpointInfo(responseType: TypedResult, responseIsList: false, responseTypeArguments: [String])
+        def infoB = new EndpointInfo(responseType: TypedResult, responseIsList: false, responseTypeArguments: [Long])
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        resolver.resolve(infoA, ep)
+        resolver.resolve(infoB, ep)
+
+        then:
+        schemas.containsKey('TypedResultOfString')
+        schemas.containsKey('TypedResultOfLong')
+    }
+
+    def "generic wrapper without type arguments uses simple class name"() {
+        given:
+        def info = new EndpointInfo(responseType: TypedResult, responseIsList: false, responseTypeArguments: [])
+        def ep = ep('GET', 'index', '/items', 'item')
+
+        when:
+        resolver.resolve(info, ep)
+
+        then:
+        schemas.containsKey('TypedResult')
+    }
+
     // ---- Helpers ----
 
     private static ResolvedEndpoint ep(String method, String action, String path, String controller) {
@@ -291,5 +356,13 @@ class ResponseResolverSpec extends Specification {
 
         int getTotal() { total }
         int getPage() { page }
+    }
+
+    static class TypedResult<T> {
+        Integer total
+        List<T> items
+
+        Integer getTotal() { total }
+        List<T> getItems() { items }
     }
 }
