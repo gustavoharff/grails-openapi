@@ -67,7 +67,7 @@ class SchemaBuilder {
         return [type: 'object', properties: properties]
     }
 
-    static Map<String, Object> buildObjectSchema(Class<?> cls, Map<String, Class<?>> typeBindings = [:]) {
+    static Map<String, Object> buildObjectSchema(Class<?> cls, Map<String, Class<?>> typeBindings = [:], Map<String, Map> schemas = null) {
         Map<String, Object> properties = [:]
         List<String> required = []
         boolean kotlin = isKotlinClass(cls)
@@ -83,7 +83,7 @@ class SchemaBuilder {
                     && field.type != Closure
                     && hasPublicGetter(current, field.name)
                     && !properties.containsKey(field.name)) {
-                    Map<String, Object> propSchema = TypeMapper.toSchema(field.type, field.genericType, typeBindings)
+                    Map<String, Object> propSchema = TypeMapper.toSchema(field.type, field.genericType, typeBindings, schemas)
                     if (isNullableProperty(current, field.name)) {
                         propSchema.nullable = true
                     } else if (kotlin) {

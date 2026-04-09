@@ -49,7 +49,7 @@ class ResponseResolver {
             def domainArtefact = grailsApplication.getArtefact('Domain', cls.simpleName)
             schemas[schemaName] = domainArtefact
                 ? SchemaBuilder.buildDomainSchema(domainArtefact)
-                : SchemaBuilder.buildObjectSchema(cls, typeBindings)
+                : SchemaBuilder.buildObjectSchema(cls, typeBindings, schemas)
         }
 
         Map<String, Object> schemaRef = ['$ref': "#/components/schemas/${schemaName}".toString()]
