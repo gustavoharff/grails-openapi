@@ -4,6 +4,8 @@ import dev.harff.grails.openapi.model.EndpointInfo
 import dev.harff.grails.openapi.model.ResolvedEndpoint
 import grails.core.GrailsApplication
 
+import java.lang.reflect.TypeVariable
+
 class ResponseResolver {
 
     GrailsApplication grailsApplication
@@ -19,7 +21,7 @@ class ResponseResolver {
         }
 
         if (info.responseType) {
-            return buildResponseForClass(info.responseType, info.responseIsList, ep)
+            return buildResponseForClass(info.responseType, info.responseIsList, ep, info.responseTypeArguments ?: [])
         }
 
         def domainClass = findDomainClass(ep.controllerName)
@@ -40,13 +42,14 @@ class ResponseResolver {
         return ['200': buildJsonResponse('Success', [type: 'object'])]
     }
 
-    private Map<String, Object> buildResponseForClass(Class<?> cls, boolean isList, ResolvedEndpoint ep) {
-        String schemaName = cls.simpleName
+    private Map<String, Object> buildResponseForClass(Class<?> cls, boolean isList, ResolvedEndpoint ep, List<Class<?>> typeArguments = []) {
+        String schemaName = buildSchemaName(cls, typeArguments)
         if (!schemas.containsKey(schemaName)) {
-            def domainArtefact = grailsApplication.getArtefact('Domain',cls.simpleName)
+            Map<String, Class<?>> typeBindings = buildTypeBindings(cls, typeArguments)
+            def domainArtefact = grailsApplication.getArtefact('Domain', cls.simpleName)
             schemas[schemaName] = domainArtefact
                 ? SchemaBuilder.buildDomainSchema(domainArtefact)
-                : SchemaBuilder.buildObjectSchema(cls)
+                : SchemaBuilder.buildObjectSchema(cls, typeBindings)
         }
 
         Map<String, Object> schemaRef = ['$ref': "#/components/schemas/${schemaName}".toString()]
@@ -54,6 +57,24 @@ class ResponseResolver {
 
         int status = (ep.httpMethod == 'POST' && ep.actionName == 'save') ? 201 : 200
         return [(status.toString()): buildJsonResponse('Success', schema)]
+    }
+
+    private static String buildSchemaName(Class<?> cls, List<Class<?>> typeArguments) {
+        if (!typeArguments) return cls.simpleName
+        String args = typeArguments.collect { it.simpleName }.join('And')
+        return "${cls.simpleName}Of${args}"
+    }
+
+    private static Map<String, Class<?>> buildTypeBindings(Class<?> cls, List<Class<?>> typeArguments) {
+        if (!typeArguments) return [:]
+        TypeVariable[] typeParams = cls.typeParameters
+        Map<String, Class<?>> bindings = [:]
+        typeParams.eachWithIndex { TypeVariable tv, int i ->
+            if (i < typeArguments.size()) {
+                bindings[tv.name] = typeArguments[i]
+            }
+        }
+        return bindings
     }
 
     private def findDomainClass(String controllerName) {
@@ -66,7 +87,7 @@ class ResponseResolver {
         for (String candidate : candidates) {
             if (!candidate) continue
             try {
-                def dc = grailsApplication.getArtefact('Domain',candidate.capitalize())
+                def dc = grailsApplication.getArtefact('Domain', candidate.capitalize())
                 if (dc) return dc
             } catch (Exception ignored) {}
         }

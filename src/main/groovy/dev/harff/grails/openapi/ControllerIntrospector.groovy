@@ -59,6 +59,7 @@ class ControllerIntrospector {
             if (respondInfo) {
                 info.responseType = respondInfo.type
                 info.responseIsList = respondInfo.isList
+                info.responseTypeArguments = respondInfo.typeArguments ?: []
             }
         }
 

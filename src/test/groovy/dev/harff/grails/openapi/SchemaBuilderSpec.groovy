@@ -66,6 +66,31 @@ class SchemaBuilderSpec extends Specification {
         !schema.properties.containsKey('class')
     }
 
+    def "buildObjectSchema with typeBindings resolves TypeVariable field"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: String])
+
+        then:
+        schema.properties.value == [type: 'string']
+    }
+
+    def "buildObjectSchema with typeBindings resolves List of TypeVariable field"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: Integer])
+
+        then:
+        schema.properties.items.type == 'array'
+        schema.properties.items.items == [type: 'integer', format: 'int32']
+    }
+
+    def "buildObjectSchema without typeBindings treats TypeVariable as object"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(GenericBean)
+
+        then:
+        schema.properties.value == [type: 'object']
+    }
+
     // --------------- buildCommandSchema ---------------
 
     def "buildCommandSchema returns object type"() {
@@ -252,5 +277,13 @@ class SchemaBuilderSpec extends Specification {
 
         String getEmail() { email }
         int getAge() { age }
+    }
+
+    static class GenericBean<T> {
+        T value
+        List<T> items
+
+        T getValue() { value }
+        List<T> getItems() { items }
     }
 }

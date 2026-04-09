@@ -11,4 +11,5 @@ class EndpointInfo {
     boolean deprecated
     Class<?> responseType
     boolean responseIsList
+    List<Class<?>> responseTypeArguments = []
 }
