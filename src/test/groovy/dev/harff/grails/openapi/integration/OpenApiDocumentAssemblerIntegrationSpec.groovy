@@ -117,6 +117,91 @@ class OpenApiDocumentAssemblerIntegrationSpec extends Specification {
         operation.responses != null
     }
 
+    def "operationId is derived from HTTP method and path segments"() {
+        given:
+        def ctrl = mockController(SimpleController, 'simple')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'simple') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Simple') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/simple', 'GET', 'index', 'simple')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        doc.paths['/simple'].get.operationId == 'getSimple'
+    }
+
+    def "operationId capitalises each path segment"() {
+        given:
+        def ctrl = mockController(SimpleController, 'user')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'user') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'User') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/admin/users', 'GET', 'index', 'user')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        doc.paths['/admin/users'].get.operationId == 'getAdminUsers'
+    }
+
+    def "operationId converts path parameter to ById suffix"() {
+        given:
+        def ctrl = mockController(SimpleController, 'user')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'user') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'User') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/admin/users/(.*)', 'PUT', 'update', 'user', [constraint('id')])
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        doc.paths['/admin/users/{id}'].put.operationId == 'putAdminUsersById'
+    }
+
+    def "operationId handles multiple path parameters"() {
+        given:
+        def ctrl = mockController(SimpleController, 'order')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'order') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Order') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/users/(.*)/(.*)', 'GET', 'show', 'order', [constraint('userId'), constraint('orderId')])
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        doc.paths['/users/{userId}/{orderId}'].get.operationId == 'getUsersByUserIdByOrderId'
+    }
+
+    def "operationId handles hyphenated path segments"() {
+        given:
+        def ctrl = mockController(SimpleController, 'item')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'item') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Item') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/some-resource', 'DELETE', 'delete', 'item')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        doc.paths['/some-resource'].delete.operationId == 'deleteSomeResource'
+    }
+
     def "endpoint with @Description has summary in operation"() {
         given:
         def ctrl = mockController(DescribedController, 'described')
