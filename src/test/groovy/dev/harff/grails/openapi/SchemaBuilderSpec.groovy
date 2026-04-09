@@ -3,6 +3,9 @@ package dev.harff.grails.openapi
 import grails.validation.Validateable
 import spock.lang.Specification
 
+// Kotlin test fixture
+import dev.harff.grails.openapi.KotlinArticle
+
 class SchemaBuilderSpec extends Specification {
 
     // --------------- buildObjectSchema ---------------
@@ -64,6 +67,61 @@ class SchemaBuilderSpec extends Specification {
 
         then:
         !schema.properties.containsKey('class')
+    }
+
+    // --------------- Kotlin nullable support ---------------
+
+    def "buildObjectSchema marks nullable Kotlin field with nullable: true"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+
+        then:
+        schema.properties.summary.nullable == true
+        schema.properties.viewCount.nullable == true
+    }
+
+    def "buildObjectSchema does not mark non-nullable Kotlin field as nullable"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+
+        then:
+        !schema.properties.title.containsKey('nullable')
+        !schema.properties.published.containsKey('nullable')
+    }
+
+    def "buildObjectSchema adds non-nullable Kotlin fields to required list"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+
+        then:
+        schema.required.containsAll(['id', 'title', 'published'])
+    }
+
+    def "buildObjectSchema does not add nullable Kotlin fields to required list"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+
+        then:
+        !schema.required.contains('summary')
+        !schema.required.contains('viewCount')
+    }
+
+    def "buildObjectSchema maps nullable Kotlin Int? as integer with nullable"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+
+        then:
+        schema.properties.viewCount.type == 'integer'
+        schema.properties.viewCount.format == 'int32'
+        schema.properties.viewCount.nullable == true
+    }
+
+    def "buildObjectSchema does not add required list for plain Java/Groovy classes"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(SimpleBean)
+
+        then:
+        !schema.containsKey('required')
     }
 
     def "buildObjectSchema with typeBindings resolves TypeVariable field"() {

@@ -17,6 +17,7 @@ plugins {
     id "eclipse"
     id "maven-publish"
     id "com.vanniktech.maven.publish" version "0.36.0"
+    id "org.jetbrains.kotlin.jvm" version "2.2.0"
 }
 
 // Not Published to Gradle Plugin Portal
@@ -49,6 +50,9 @@ dependencies {
     testImplementation "org.spockframework:spock-core"
     testImplementation "net.bytebuddy:byte-buddy"
     testImplementation "org.objenesis:objenesis"
+    compileOnly "org.jetbrains.kotlin:kotlin-reflect"
+    testImplementation "org.jetbrains.kotlin:kotlin-stdlib"
+    testImplementation "org.jetbrains.kotlin:kotlin-reflect"
 }
 
 compileJava {
@@ -62,6 +66,16 @@ javadoc {
 
 tasks.withType(Test).configureEach {
     useJUnitPlatform()
+}
+
+tasks.named('compileGroovy') {
+    dependsOn tasks.named('compileKotlin')
+    classpath += files(tasks.named('compileKotlin').get().destinationDirectory)
+}
+
+tasks.named('compileTestGroovy') {
+    dependsOn tasks.named('compileTestKotlin')
+    classpath += files(tasks.named('compileTestKotlin').get().destinationDirectory)
 }
 
 mavenPublishing {
