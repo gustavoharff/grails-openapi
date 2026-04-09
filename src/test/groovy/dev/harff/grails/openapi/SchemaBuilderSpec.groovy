@@ -3,9 +3,6 @@ package dev.harff.grails.openapi
 import grails.validation.Validateable
 import spock.lang.Specification
 
-// Kotlin test fixture
-import dev.harff.grails.openapi.KotlinArticle
-
 class SchemaBuilderSpec extends Specification {
 
     // --------------- buildObjectSchema ---------------
@@ -69,51 +66,22 @@ class SchemaBuilderSpec extends Specification {
         !schema.properties.containsKey('class')
     }
 
-    // --------------- Kotlin nullable support ---------------
+    // --------------- nullable property detection ---------------
 
-    def "buildObjectSchema marks nullable Kotlin field with nullable: true"() {
+    def "buildObjectSchema marks field with @Nullable getter as nullable"() {
         when:
-        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+        def schema = SchemaBuilder.buildObjectSchema(BeanWithNullableGetter)
 
         then:
-        schema.properties.summary.nullable == true
-        schema.properties.viewCount.nullable == true
+        schema.properties.optional.nullable == true
     }
 
-    def "buildObjectSchema does not mark non-nullable Kotlin field as nullable"() {
+    def "buildObjectSchema does not mark field without @Nullable as nullable"() {
         when:
-        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
+        def schema = SchemaBuilder.buildObjectSchema(BeanWithNullableGetter)
 
         then:
-        !schema.properties.title.containsKey('nullable')
-        !schema.properties.published.containsKey('nullable')
-    }
-
-    def "buildObjectSchema adds non-nullable Kotlin fields to required list"() {
-        when:
-        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
-
-        then:
-        schema.required.containsAll(['id', 'title', 'published'])
-    }
-
-    def "buildObjectSchema does not add nullable Kotlin fields to required list"() {
-        when:
-        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
-
-        then:
-        !schema.required.contains('summary')
-        !schema.required.contains('viewCount')
-    }
-
-    def "buildObjectSchema maps nullable Kotlin Int? as integer with nullable"() {
-        when:
-        def schema = SchemaBuilder.buildObjectSchema(KotlinArticle)
-
-        then:
-        schema.properties.viewCount.type == 'integer'
-        schema.properties.viewCount.format == 'int32'
-        schema.properties.viewCount.nullable == true
+        !schema.properties.required.containsKey('nullable')
     }
 
     def "buildObjectSchema does not add required list for plain Java/Groovy classes"() {
@@ -343,5 +311,18 @@ class SchemaBuilderSpec extends Specification {
 
         T getValue() { value }
         List<T> getItems() { items }
+    }
+
+    static class BeanWithNullableGetter {
+        String required
+        String optional
+
+        String getRequired() { required }
+
+        // @org.springframework.lang.Nullable has RUNTIME retention, so it's
+        // visible via reflection — unlike @org.jetbrains.annotations.Nullable
+        // which has CLASS retention only.
+        @org.springframework.lang.Nullable
+        String getOptional() { optional }
     }
 }

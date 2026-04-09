@@ -105,11 +105,33 @@ class SchemaBuilder {
     }
 
     private static boolean isNullableProperty(Class<?> cls, String fieldName) {
-        // Use kotlin-reflect when available (preferred: handles Kotlin 2.x correctly)
-        try {
-            return KotlinNullabilityChecker.isNullable(cls, fieldName)
-        } catch (Exception ignored) {}
-        // Fallback: check for @Nullable on the getter (works for Java and older Kotlin)
+        if (isKotlinClass(cls)) {
+            // For Kotlin classes, use kotlin-reflect (optional runtime dependency).
+            // This is the only reliable approach for Kotlin 2.x, which no longer
+            // emits @Nullable on getters by default.
+            try {
+                Class<?> mappingKt = Class.forName('kotlin.jvm.JvmClassMappingKt')
+                Object kClass = mappingKt.getMethod('getKotlinClass', Class).invoke(null, cls)
+
+                Class<?> kClassExtClass = Class.forName('kotlin.reflect.full.KClasses')
+                Class<?> kClassInterface = Class.forName('kotlin.reflect.KClass')
+                Collection<?> props = (Collection<?>) kClassExtClass
+                    .getMethod('getMemberProperties', kClassInterface)
+                    .invoke(null, kClass)
+
+                Class<?> kCallable = Class.forName('kotlin.reflect.KCallable')
+                Class<?> kType = Class.forName('kotlin.reflect.KType')
+                for (Object prop : props) {
+                    String name = (String) kCallable.getMethod('getName').invoke(prop)
+                    if (name == fieldName) {
+                        Object returnType = kCallable.getMethod('getReturnType').invoke(prop)
+                        return (Boolean) kType.getMethod('isMarkedNullable').invoke(returnType)
+                    }
+                }
+            } catch (Exception ignored) {}
+            return false
+        }
+        // For Java/Groovy classes: check for runtime-retained @Nullable annotations on the getter
         String capitalized = fieldName.capitalize()
         java.lang.reflect.Method getter = null
         try {
@@ -122,8 +144,9 @@ class SchemaBuilder {
         if (!getter) return false
         return getter.annotations.any { ann ->
             ann.annotationType().name in [
-                'org.jetbrains.annotations.Nullable',
-                'javax.annotation.Nullable',
+                'javax.annotation.Nullable',           // JSR-305 (RUNTIME retention)
+                'org.springframework.lang.Nullable',   // Spring (RUNTIME retention)
+                'jakarta.annotation.Nullable',         // Jakarta EE (RUNTIME retention)
             ]
         }
     }
