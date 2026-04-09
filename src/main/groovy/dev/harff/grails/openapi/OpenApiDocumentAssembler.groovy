@@ -70,7 +70,7 @@ class OpenApiDocumentAssembler {
             Map responses = responseResolver.resolve(info, ep)
 
             String tag = info.apiTag ?: deriveTag(ep.controllerName)
-            String operationId = "${ep.httpMethod.toLowerCase()}_${ep.controllerName}_${ep.actionName}"
+            String operationId = deriveOperationId(ep.httpMethod, ep.path)
 
             Map operation = [
                 tags       : [tag],
@@ -182,6 +182,19 @@ class OpenApiDocumentAssembler {
         int start = Math.max(0, qualifierParts.length - depth)
         String prefix = qualifierParts[start..<qualifierParts.length].collect { it.capitalize() }.join('')
         return prefix + cls.simpleName
+    }
+
+    private static String deriveOperationId(String httpMethod, String path) {
+        String prefix = httpMethod.toLowerCase()
+        String segments = path.split('/').findAll { it }.collect { String seg ->
+            if (seg =~ /^\{(\w+)\}$/) {
+                String param = (seg =~ /^\{(\w+)\}$/)[0][1]
+                'By' + param.capitalize()
+            } else {
+                seg.split('[^a-zA-Z0-9]+').collect { it.capitalize() }.join('')
+            }
+        }.join('')
+        return prefix + segments
     }
 
     private static String deriveTag(String controllerName) {
