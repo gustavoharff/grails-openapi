@@ -117,6 +117,20 @@ class SchemaBuilderSpec extends Specification {
         schema.properties.value == [type: 'object']
     }
 
+    def "buildObjectSchema with schemas registry generates refs and registers nested complex types"() {
+        given:
+        Map<String, Map> schemas = [:]
+
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: SimpleBean], schemas)
+
+        then:
+        schema.properties.value == ['$ref': '#/components/schemas/SimpleBean']
+        schema.properties.items == [type: 'array', items: ['$ref': '#/components/schemas/SimpleBean']]
+        schemas.containsKey('SimpleBean')
+        schemas['SimpleBean'].type == 'object'
+    }
+
     // --------------- buildCommandSchema ---------------
 
     def "buildCommandSchema returns object type"() {

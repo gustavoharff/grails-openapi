@@ -10,14 +10,14 @@ import java.time.ZonedDateTime
 
 class TypeMapper {
 
-    static Map<String, Object> toSchema(Class<?> type, Type genericType = null, Map<String, Class<?>> typeBindings = [:]) {
+    static Map<String, Object> toSchema(Class<?> type, Type genericType = null, Map<String, Class<?>> typeBindings = [:], Map<String, Map> schemas = null) {
         if (type == null) return [type: 'object']
 
         // Resolve a type variable (e.g. field declared as T) using the provided bindings
         if (genericType instanceof TypeVariable) {
             String varName = ((TypeVariable) genericType).name
             Class<?> bound = typeBindings[varName]
-            if (bound) return toSchema(bound, null, typeBindings)
+            if (bound) return toSchema(bound, null, typeBindings, schemas)
             return [type: 'object']
         }
 
@@ -34,27 +34,36 @@ class TypeMapper {
         if (type == LocalDate) return [type: 'string', format: 'date']
 
         if (Collection.isAssignableFrom(type) || type.isArray()) {
-            Map<String, Object> items = resolveItemsSchema(type, genericType, typeBindings)
+            Map<String, Object> items = resolveItemsSchema(type, genericType, typeBindings, schemas)
             return [type: 'array', items: items]
         }
 
         if (Map.isAssignableFrom(type)) return [type: 'object']
 
+        // Complex type: register schema and return $ref when registry is provided
+        if (schemas != null && type != Object) {
+            String schemaName = type.simpleName
+            if (!schemas.containsKey(schemaName)) {
+                schemas[schemaName] = SchemaBuilder.buildObjectSchema(type, [:], schemas)
+            }
+            return ['$ref': "#/components/schemas/${schemaName}".toString()]
+        }
+
         return [type: 'object']
     }
 
-    private static Map<String, Object> resolveItemsSchema(Class<?> type, Type genericType, Map<String, Class<?>> typeBindings = [:]) {
+    private static Map<String, Object> resolveItemsSchema(Class<?> type, Type genericType, Map<String, Class<?>> typeBindings = [:], Map<String, Map> schemas = null) {
         if (genericType instanceof ParameterizedType) {
             Type[] args = ((ParameterizedType) genericType).actualTypeArguments
             if (args.length > 0) {
                 Type arg = args[0]
                 if (arg instanceof Class) {
-                    return toSchema((Class<?>) arg, null, typeBindings)
+                    return toSchema((Class<?>) arg, null, typeBindings, schemas)
                 }
                 if (arg instanceof TypeVariable) {
                     String varName = ((TypeVariable) arg).name
                     Class<?> bound = typeBindings[varName]
-                    if (bound) return toSchema(bound, null, typeBindings)
+                    if (bound) return toSchema(bound, null, typeBindings, schemas)
                 }
             }
         }
