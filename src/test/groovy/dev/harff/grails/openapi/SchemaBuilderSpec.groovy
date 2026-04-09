@@ -66,6 +66,32 @@ class SchemaBuilderSpec extends Specification {
         !schema.properties.containsKey('class')
     }
 
+    // --------------- nullable property detection ---------------
+
+    def "buildObjectSchema marks field with @Nullable getter as nullable"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(BeanWithNullableGetter)
+
+        then:
+        schema.properties.optional.nullable == true
+    }
+
+    def "buildObjectSchema does not mark field without @Nullable as nullable"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(BeanWithNullableGetter)
+
+        then:
+        !schema.properties.required.containsKey('nullable')
+    }
+
+    def "buildObjectSchema does not add required list for plain Java/Groovy classes"() {
+        when:
+        def schema = SchemaBuilder.buildObjectSchema(SimpleBean)
+
+        then:
+        !schema.containsKey('required')
+    }
+
     def "buildObjectSchema with typeBindings resolves TypeVariable field"() {
         when:
         def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: String])
@@ -285,5 +311,18 @@ class SchemaBuilderSpec extends Specification {
 
         T getValue() { value }
         List<T> getItems() { items }
+    }
+
+    static class BeanWithNullableGetter {
+        String required
+        String optional
+
+        String getRequired() { required }
+
+        // @org.springframework.lang.Nullable has RUNTIME retention, so it's
+        // visible via reflection — unlike @org.jetbrains.annotations.Nullable
+        // which has CLASS retention only.
+        @org.springframework.lang.Nullable
+        String getOptional() { optional }
     }
 }
