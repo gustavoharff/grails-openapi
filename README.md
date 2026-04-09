@@ -1,5 +1,7 @@
 # grails-openapi
 
+> **Warning:** This library is currently under active development. APIs may change, and it may not be stable for production use.
+
 A Gradle plugin for Grails applications that automatically generates [OpenAPI 3.0.3](https://spec.openapis.org/oas/v3.0.3) specification documents by introspecting your controllers, URL mappings, and domain classes.
 
 ## Installation
