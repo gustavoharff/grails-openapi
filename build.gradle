@@ -102,25 +102,5 @@ mavenPublishing {
             url = "https://github.com/gustavoharff/grails-openapi"
         }
 
-        // The Kotlin JVM plugin (used only for test fixture compilation) adds
-        // kotlin-stdlib to implementation, which would otherwise leak into the
-        // published POM as a transitive dependency for all plugin consumers.
-        // Strip all Kotlin entries from both <dependencies> and
-        // <dependencyManagement> — users who want Kotlin nullable support
-        // need kotlin-reflect on their own runtime classpath.
-        withXml {
-            def root = asNode()
-            ['dependencies', 'dependencyManagement'].each { sectionName ->
-                root.get(sectionName)?.each { section ->
-                    def container = sectionName == 'dependencyManagement'
-                        ? section.get('dependencies')[0]
-                        : section
-                    container?.children()?.removeAll { dep ->
-                        dep.name() == 'dependency' &&
-                        dep.get('groupId')[0]?.text() == 'org.jetbrains.kotlin'
-                    }
-                }
-            }
-        }
     }
 }
