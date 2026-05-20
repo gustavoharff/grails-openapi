@@ -22,6 +22,7 @@ class TypeMapper {
         }
 
         if (type == String || type == GString) return [type: 'string']
+        if (type == Short || type == short) return [type: 'integer', format: 'int32']
         if (type == Integer || type == int) return [type: 'integer', format: 'int32']
         if (type == Long || type == long) return [type: 'integer', format: 'int64']
         if (type == Double || type == double) return [type: 'number', format: 'double']

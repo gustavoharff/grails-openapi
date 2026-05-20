@@ -19,6 +19,7 @@ class TypeMapperSpec extends Specification {
         type          | expectedType
         String        | 'string'
         GString       | 'string'
+        Short         | 'integer'
         Integer       | 'integer'
         Long          | 'integer'
         Double        | 'number'
@@ -44,6 +45,7 @@ class TypeMapperSpec extends Specification {
 
         where:
         type          | expectedFormat
+        Short         | 'int32'
         Integer       | 'int32'
         Long          | 'int64'
         Double        | 'double'
@@ -58,6 +60,11 @@ class TypeMapperSpec extends Specification {
     def "maps null type to object schema"() {
         expect:
         TypeMapper.toSchema(null) == [type: 'object']
+    }
+
+    def "maps primitive short to integer/int32"() {
+        expect:
+        TypeMapper.toSchema(short) == [type: 'integer', format: 'int32']
     }
 
     def "maps primitive int to integer/int32"() {
