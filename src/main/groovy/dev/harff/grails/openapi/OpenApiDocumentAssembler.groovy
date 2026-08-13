@@ -1,5 +1,6 @@
 package dev.harff.grails.openapi
 
+import dev.harff.grails.openapi.model.DocumentConfig
 import dev.harff.grails.openapi.model.EndpointInfo
 import dev.harff.grails.openapi.model.ResolvedEndpoint
 import grails.core.GrailsApplication
@@ -12,7 +13,7 @@ class OpenApiDocumentAssembler {
 
     GrailsApplication grailsApplication
 
-    Map<String, Object> assemble(def urlMappingsHolder) {
+    Map<String, Object> assemble(def urlMappingsHolder, DocumentConfig config = new DocumentConfig()) {
         Map<String, Map> schemas = [:]
         Map<String, Map> paths = [:]
 
@@ -22,7 +23,11 @@ class OpenApiDocumentAssembler {
         SecurityResolver security = new SecurityResolver()
         ResponseResolver responseResolver = new ResponseResolver(grailsApplication: grailsApplication, schemas: schemas)
 
+        // Scope the document before anything is introspected, so only the schemas its own
+        // paths need are ever built.
+        PathFilter pathFilter = new PathFilter(config)
         List<ResolvedEndpoint> endpoints = resolver.resolveAll(urlMappingsHolder)
+            .findAll { pathFilter.accepts(it.path) }
 
         // Introspect all endpoints once, then compute unique schema names up-front
         List<Tuple2<ResolvedEndpoint, EndpointInfo>> resolved = endpoints.collect { ep ->
@@ -90,17 +95,38 @@ class OpenApiDocumentAssembler {
             paths[ep.path][method] = operation
         }
 
-        return [
-            openapi   : '3.0.3',
-            info      : [title: 'API', version: '1.0.0'],
-            servers   : [[url: '/']],
-            security  : [[bearerAuth: []]],
-            paths     : paths.sort { a, b -> a.key <=> b.key },
-            components: [
-                securitySchemes: SecurityResolver.buildSecuritySchemes(),
-                schemas        : schemas.sort { a, b -> a.key <=> b.key }
-            ]
-        ]
+        return buildDocument(config, paths, schemas)
+    }
+
+    private static Map<String, Object> buildDocument(DocumentConfig config,
+                                                     Map<String, Map> paths,
+                                                     Map<String, Map> schemas) {
+        Map<String, Object> info = [title: config.resolveTitle()]
+        if (config.description) info.description = config.description
+        info.version = config.resolveVersion()
+
+        List<Map> globalSecurity = [[bearerAuth: []]]
+        Map<String, Object> securitySchemes = SecurityResolver.buildSecuritySchemes()
+
+        // With no operation to inherit it, the document-wide requirement cannot be judged
+        // unused, so an empty document keeps the default security skeleton.
+        if (ComponentPruner.operations(paths)) {
+            securitySchemes = ComponentPruner.pruneSecuritySchemes(securitySchemes, globalSecurity, paths)
+            if (!securitySchemes) globalSecurity = null
+        }
+
+        Map<String, Object> components = [:]
+        if (securitySchemes) components.securitySchemes = securitySchemes
+        components.schemas = ComponentPruner.pruneSchemas(schemas, paths).sort { a, b -> a.key <=> b.key }
+
+        Map<String, Object> document = [:]
+        document.openapi = '3.0.3'
+        document.info = info
+        document.servers = config.resolveServers()
+        if (globalSecurity) document.security = globalSecurity
+        document.paths = paths.sort { a, b -> a.key <=> b.key }
+        document.components = components
+        return document
     }
 
     private static List<Map> buildQueryParams(Class<?> commandClass, List<String> existingPathParams) {

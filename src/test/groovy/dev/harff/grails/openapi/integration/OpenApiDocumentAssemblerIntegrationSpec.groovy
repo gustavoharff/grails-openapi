@@ -5,10 +5,13 @@ import dev.harff.grails.openapi.ApiPublic
 import dev.harff.grails.openapi.ApiTag
 import dev.harff.grails.openapi.Description
 import dev.harff.grails.openapi.OpenApiDocumentAssembler
+import dev.harff.grails.openapi.YamlWriter
+import dev.harff.grails.openapi.model.DocumentConfig
 import grails.core.GrailsApplication
 import grails.validation.Validateable
 import org.grails.core.DefaultGrailsControllerClass
 import spock.lang.Specification
+import spock.lang.TempDir
 
 /**
  * Integration test for OpenApiDocumentAssembler.
@@ -18,6 +21,9 @@ import spock.lang.Specification
  * objects. Verifies end-to-end document shape without requiring a running Grails context.
  */
 class OpenApiDocumentAssemblerIntegrationSpec extends Specification {
+
+    @TempDir
+    File tempDir
 
     GrailsApplication grailsApplication = Mock()
     OpenApiDocumentAssembler assembler
@@ -444,6 +450,187 @@ class OpenApiDocumentAssemblerIntegrationSpec extends Specification {
         // Both schema names must be distinct
         def schemaNames = doc.components.schemas.keySet()
         schemaNames.toList().unique().size() == schemaNames.size()
+    }
+
+    // ---- Document scoping ----
+
+    def "info and servers come from the document configuration"() {
+        given:
+        def config = new DocumentConfig(
+            name: 'public',
+            title: 'Public API',
+            version: '2.1.0',
+            description: 'Read your monitoring data from outside.',
+            servers: [[url: 'https://api.example.com'], [url: 'https://sandbox.example.com', description: 'Sandbox']],
+        )
+
+        when:
+        def doc = assembler.assemble([urlMappings: []], config)
+
+        then:
+        doc.info.title == 'Public API'
+        doc.info.version == '2.1.0'
+        doc.info.description == 'Read your monitoring data from outside.'
+        doc.servers == [[url: 'https://api.example.com'], [url: 'https://sandbox.example.com', description: 'Sandbox']]
+    }
+
+    def "includePaths keeps only the paths it matches"() {
+        given:
+        def ctrl = mockController(SimpleController, 'item')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'item') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Item') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/public/v1/comments', 'GET', 'index', 'item'),
+            concreteMapping('/internal/orders', 'GET', 'show', 'item'),
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder, new DocumentConfig(includePaths: ['/public/v1/**']))
+
+        then:
+        doc.paths.keySet() == ['/public/v1/comments'] as Set
+    }
+
+    def "excludePaths wins over includePaths"() {
+        given:
+        def ctrl = mockController(SimpleController, 'item')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'item') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Item') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/public/v1/comments', 'GET', 'index', 'item'),
+            concreteMapping('/public/v1/secret', 'GET', 'show', 'item'),
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder, new DocumentConfig(
+            includePaths: ['/public/v1/**'],
+            excludePaths: ['/public/v1/secret'],
+        ))
+
+        then:
+        doc.paths.keySet() == ['/public/v1/comments'] as Set
+    }
+
+    def "a scoped document carries only the schemas its own paths reach"() {
+        given:
+        def ctrl = mockController(TwoCommandsController, 'multi')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'multi') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Multi') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/public/v1/comments', 'POST', 'saveA', 'multi'),
+            concreteMapping('/internal/orders', 'POST', 'saveB', 'multi'),
+        ]]
+
+        when:
+        def full = assembler.assemble(holder)
+        def scoped = assembler.assemble(holder, new DocumentConfig(includePaths: ['/public/v1/**']))
+
+        then: 'the unscoped document describes both commands'
+        full.components.schemas.size() == 2
+
+        and: 'the scoped one keeps only the command its single path references'
+        scoped.paths.keySet() == ['/public/v1/comments'] as Set
+        scoped.components.schemas.size() == 1
+        scoped.components.schemas.keySet().first().contains('CreateCommand')
+
+        and: 'and that schema is the one the emitted request body points at'
+        def ref = scoped.paths['/public/v1/comments'].post.requestBody.content.'application/json'.schema.'$ref'
+        ref == "#/components/schemas/${scoped.components.schemas.keySet().first()}"
+    }
+
+    def "the security scheme is dropped when no emitted operation requires it"() {
+        given:
+        def ctrl = mockController(PublicController, 'public')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'public') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Public') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/public/v1/open', 'GET', 'open', 'public')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder, new DocumentConfig(includePaths: ['/public/v1/**']))
+
+        then:
+        !doc.containsKey('security')
+        !doc.components.containsKey('securitySchemes')
+    }
+
+    def "the security scheme survives when one emitted operation still requires it"() {
+        given:
+        def ctrl = mockController(SimpleController, 'item')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'item') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Item') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/items', 'GET', 'index', 'item')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        doc.security == [[bearerAuth: []]]
+        doc.components.securitySchemes.bearerAuth != null
+    }
+
+    def "a project without an openapi block produces the document 0.3.0 produced"() {
+        given:
+        def ctrl = mockController(SimpleController, 'simple')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'simple') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Simple') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/simple', 'GET', 'index', 'simple')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+        File file = new File(tempDir, 'openapi.yaml')
+        YamlWriter.write(doc, file.path)
+
+        then:
+        doc.keySet().toList() == ['openapi', 'info', 'servers', 'security', 'paths', 'components']
+        doc.info == [title: 'API', version: '1.0.0']
+        doc.servers == [[url: '/']]
+        doc.components.keySet().toList() == ['securitySchemes', 'schemas']
+        doc.components.schemas == [:]
+
+        and:
+        file.text == '''\
+openapi: 3.0.3
+info:
+  title: API
+  version: 1.0.0
+servers:
+  - url: /
+security:
+  - bearerAuth: []
+paths:
+  /simple:
+    get:
+      tags:
+        - Simple
+      operationId: getSimple
+      responses:
+        \'200\':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas: {
+    }
+'''
     }
 
     // ---- Helpers ----
