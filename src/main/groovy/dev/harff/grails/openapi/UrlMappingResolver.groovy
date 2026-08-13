@@ -52,12 +52,42 @@ class UrlMappingResolver {
                     if (specificCoverage.contains(coverageKey)) return
 
                     ResolvedEndpoint ep = buildEndpoint(httpMethod, rawPattern, ctrl.logicalPropertyName, actionName, ctrl)
-                    if (ep && addIfNew(ep, seenPaths)) results << ep
+                    // The path here is a convention built from the controller name, not one the
+                    // mapping spells out, so it only counts if the application really routes it.
+                    if (!ep || !isRoutable(urlMappingsHolder, ep)) return
+                    if (addIfNew(ep, seenPaths)) results << ep
                 }
             }
         }
 
         return results
+    }
+
+    /**
+     * Asks the application whether the conventional path actually routes to this controller
+     * action. Without the check, a controller reachable only through an explicit mapping —
+     * say PublicCommentsController behind get "/public/v1/comments" — would also be published
+     * under the conventional /public-comments that no mapping resolves.
+     *
+     * A holder that cannot answer (a stub, or an older Grails) leaves the endpoint in place.
+     */
+    private static boolean isRoutable(def urlMappingsHolder, ResolvedEndpoint ep) {
+        def matches
+        try {
+            matches = urlMappingsHolder.matchAll(probeUri(ep.path), ep.httpMethod)
+        } catch (Exception ignored) {
+            return true
+        }
+        if (matches == null) return true
+
+        return matches.toList().any { info ->
+            info?.controllerName == ep.controllerName && info?.actionName == ep.actionName
+        }
+    }
+
+    /** A concrete URI to match with, standing in for the path's template variables. */
+    private static String probeUri(String path) {
+        return path.replaceAll(/\{\w+}/, '1')
     }
 
     /**
