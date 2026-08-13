@@ -10,10 +10,11 @@ class UrlMappingResolverSpec extends Specification {
 
     GrailsApplication grailsApplication = Mock()
     UrlMappingResolver resolver
+    List controllers = []
 
     def setup() {
         resolver = new UrlMappingResolver(grailsApplication: grailsApplication)
-        grailsApplication.getArtefacts('Controller') >> []
+        grailsApplication.getArtefacts('Controller') >> { controllers }
     }
 
     def "returns empty list when no URL mappings"() {
@@ -200,7 +201,98 @@ class UrlMappingResolverSpec extends Specification {
         'PATCH' | 'patch'
     }
 
+    def "a controller reachable only through an explicit mapping keeps out of the conventional path"() {
+        given: 'PublicCommentsController is routed at /public/v1/comments and nowhere else'
+        def ctrl = mockController(PlainAction, 'publicComments')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'publicComments') >> ctrl
+        controllers = [ctrl]
+
+        def holder = new StubHolder(
+            urlMappings: [
+                concreteMapping('/public/v1/comments', 'GET', 'index', 'publicComments'),
+                mapping('/\$controller/\$id', 'GET', 'show', null),
+            ],
+            routes: [
+                [uri: '/public/v1/comments', method: 'GET', controller: 'publicComments', action: 'index'],
+            ],
+        )
+
+        when:
+        def results = resolver.resolveAll(holder)
+
+        then: 'only the mapped path survives, not the conventional /public-comments/{id}'
+        results.size() == 1
+        results[0].path == '/public/v1/comments'
+        !results.any { it.path.contains('public-comments') }
+    }
+
+    def "generic mapping expands only to the controllers the application routes"() {
+        given:
+        def routed = mockController(PlainAction, 'item')
+        def unrouted = mockController(PlainAction, 'secret')
+        controllers = [routed, unrouted]
+
+        def holder = new StubHolder(
+            urlMappings: [mapping('/\$controller', 'GET', 'index', null)],
+            routes: [[uri: '/item', method: 'GET', controller: 'item', action: 'index']],
+        )
+
+        when:
+        def results = resolver.resolveAll(holder)
+
+        then:
+        results.size() == 1
+        results[0].path == '/item'
+        results[0].controllerName == 'item'
+    }
+
+    def "generic mapping is kept when the holder cannot resolve routes"() {
+        given: 'a holder without matchAll, as older Grails versions and plain stubs have'
+        def ctrl = mockController(PlainAction, 'item')
+        controllers = [ctrl]
+
+        def holder = [urlMappings: [mapping('/\$controller', 'GET', 'index', null)]]
+
+        when:
+        def results = resolver.resolveAll(holder)
+
+        then:
+        results.size() == 1
+        results[0].path == '/item'
+    }
+
+    def "path variables are filled in before the route is verified"() {
+        given:
+        def ctrl = mockController(PlainAction, 'item')
+        controllers = [ctrl]
+
+        def holder = new StubHolder(
+            urlMappings: [mapping('/\$controller/\$id', 'GET', 'show', null)],
+            routes: [[uri: '/item/1', method: 'GET', controller: 'item', action: 'show']],
+        )
+
+        when:
+        def results = resolver.resolveAll(holder)
+
+        then:
+        results.size() == 1
+        results[0].path == '/item/{id}'
+        results[0].pathParams == ['id']
+    }
+
     // ---- Helpers ----
+
+    /** Stands in for a Grails UrlMappingsHolder, which can both list and match its mappings. */
+    static class StubHolder {
+        List urlMappings = []
+        List<Map> routes = []
+
+        Object[] matchAll(String uri, String httpMethod) {
+            return routes
+                .findAll { it.uri == uri && it.method == httpMethod }
+                .collect { [controllerName: it.controller, actionName: it.action] } as Object[]
+        }
+    }
 
     private DefaultGrailsControllerClass mockController(Class<?> clazz, String logicalName) {
         def ctrl = Mock(DefaultGrailsControllerClass)
