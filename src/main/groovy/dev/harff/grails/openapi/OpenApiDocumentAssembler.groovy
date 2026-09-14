@@ -131,10 +131,7 @@ class OpenApiDocumentAssembler {
 
     private static List<Map> buildQueryParams(Class<?> commandClass, List<String> existingPathParams) {
         List<Map> params = []
-        Map constrainedProperties = [:]
-        try {
-            constrainedProperties = commandClass.constrainedProperties ?: [:]
-        } catch (Exception ignored) {}
+        Map constrainedProperties = SchemaBuilder.constraintsOf(commandClass)
 
         collectCommandFields(commandClass).each { Field field ->
             if (existingPathParams.contains(field.name)) return

@@ -168,6 +168,49 @@ class SchemaBuilderSpec extends Specification {
         schema != null
     }
 
+    def "buildCommandSchema marks non-nullable properties as required"() {
+        when:
+        def schema = SchemaBuilder.buildCommandSchema(ConstrainedCommand)
+
+        then:
+        schema.required == ['color']
+    }
+
+    def "buildCommandSchema maps inList and maxSize constraints"() {
+        when:
+        def schema = SchemaBuilder.buildCommandSchema(ConstrainedCommand)
+
+        then:
+        schema.properties.color['enum'] == ['red', 'blue']
+        schema.properties.label.maxLength == 20
+    }
+
+    def "buildCommandSchema maps min and max constraints"() {
+        when:
+        def schema = SchemaBuilder.buildCommandSchema(ConstrainedCommand)
+
+        then:
+        schema.properties.count.minimum == 1
+        schema.properties.count.maximum == 100
+    }
+
+    // --------------- constraintsOf ---------------
+
+    def "constraintsOf reads the Validateable constraints map"() {
+        when:
+        def constraints = SchemaBuilder.constraintsOf(ConstrainedCommand)
+
+        then:
+        constraints.keySet() == ['color', 'label', 'count'] as Set
+        !constraints.color.nullable
+        constraints.label.nullable
+    }
+
+    def "constraintsOf returns an empty map for a class without constraints"() {
+        expect:
+        SchemaBuilder.constraintsOf(SimpleBean) == [:]
+    }
+
     // --------------- buildDomainSchema ---------------
 
     def "buildDomainSchema returns object type"() {
@@ -317,6 +360,22 @@ class SchemaBuilderSpec extends Specification {
 
         String getEmail() { email }
         int getAge() { age }
+    }
+
+    static class ConstrainedCommand implements Validateable {
+        String color
+        String label
+        Integer count
+
+        String getColor() { color }
+        String getLabel() { label }
+        Integer getCount() { count }
+
+        static constraints = {
+            color(nullable: false, inList: ['red', 'blue'])
+            label(nullable: true, maxSize: 20)
+            count(nullable: true, min: 1, max: 100)
+        }
     }
 
     static class GenericBean<T> {
