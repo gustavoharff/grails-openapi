@@ -11,10 +11,7 @@ class SchemaBuilder {
         Map<String, Object> properties = [:]
         List<String> required = []
 
-        Map constrainedProperties = [:]
-        try {
-            constrainedProperties = cls.constrainedProperties ?: [:]
-        } catch (Exception ignored) {}
+        Map constrainedProperties = constraintsOf(cls)
 
         collectFields(cls).each { Field field ->
             Map<String, Object> propSchema = TypeMapper.toSchema(field.type, field.genericType)
@@ -36,6 +33,21 @@ class SchemaBuilder {
         Map<String, Object> schema = [type: 'object', properties: properties]
         if (required) schema.required = required
         return schema
+    }
+
+    /**
+     * The evaluated constraints of a {@link Validateable} class, keyed by property name.
+     * Grails 5+ exposes them as {@code constraintsMap}; {@code constrainedProperties} is the
+     * pre-5 name, kept so older applications still get their constraints mapped.
+     */
+    static Map constraintsOf(Class<?> cls) {
+        for (String accessor : ['constraintsMap', 'constrainedProperties']) {
+            try {
+                Map constraints = cls."${accessor}" as Map
+                if (constraints != null) return constraints
+            } catch (Exception ignored) {}
+        }
+        return [:]
     }
 
     static Map<String, Object> buildDomainSchema(def domainClass) {

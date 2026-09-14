@@ -389,6 +389,29 @@ class OpenApiDocumentAssemblerIntegrationSpec extends Specification {
         operation.parameters.any { it.in == 'query' }
     }
 
+    def "GET query parameters carry the command constraints"() {
+        given:
+        def ctrl = mockController(CommandController, 'command')
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'command') >> ctrl
+        grailsApplication.getArtefactByLogicalPropertyName('Controller', 'Command') >> null
+
+        def holder = [urlMappings: [
+            concreteMapping('/command/browse', 'GET', 'browse', 'command')
+        ]]
+
+        when:
+        def doc = assembler.assemble(holder)
+
+        then:
+        def params = doc.paths['/command/browse'].get.parameters
+        def color = params.find { it.name == 'color' }
+        def label = params.find { it.name == 'label' }
+        color.required
+        color.schema['enum'] == ['red', 'blue']
+        !label.required
+        label.schema['enum'] == null
+    }
+
     def "DELETE endpoint returns 204 response"() {
         given:
         def ctrl = mockController(SimpleController, 'item')
@@ -697,9 +720,23 @@ components:
         String getName() { name }
     }
 
+    static class BrowseCommand implements Validateable {
+        String color
+        String label
+
+        String getColor() { color }
+        String getLabel() { label }
+
+        static constraints = {
+            color(nullable: false, inList: ['red', 'blue'])
+            label(nullable: true)
+        }
+    }
+
     static class CommandController {
         void save(CreateCommand cmd) {}
         void search(CreateCommand cmd) {}
+        void browse(BrowseCommand cmd) {}
     }
 
     static class TwoCommandsController {
