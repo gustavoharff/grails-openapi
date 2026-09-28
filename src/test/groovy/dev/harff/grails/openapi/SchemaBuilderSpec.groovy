@@ -20,8 +20,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(SimpleBean)
 
         then:
-        schema.properties.name == [type: 'string']
-        schema.properties.age == [type: 'integer', format: 'int32']
+        schema.get('properties').name == [type: 'string']
+        schema.get('properties').age == [type: 'integer', format: 'int32']
     }
 
     def "buildObjectSchema excludes static fields"() {
@@ -29,7 +29,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(SimpleBean)
 
         then:
-        !schema.properties.containsKey('CONSTANT')
+        !schema.get('properties').containsKey('CONSTANT')
     }
 
     def "buildObjectSchema excludes fields without a public getter"() {
@@ -37,8 +37,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(BeanWithPrivateField)
 
         then:
-        schema.properties.containsKey('visible')
-        !schema.properties.containsKey('hidden')
+        schema.get('properties').containsKey('visible')
+        !schema.get('properties').containsKey('hidden')
     }
 
     def "buildObjectSchema traverses superclass fields"() {
@@ -46,8 +46,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(ChildBean)
 
         then:
-        schema.properties.containsKey('name')
-        schema.properties.containsKey('extra')
+        schema.get('properties').containsKey('name')
+        schema.get('properties').containsKey('extra')
     }
 
     def "buildObjectSchema does not duplicate superclass fields in child"() {
@@ -55,7 +55,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(ChildBean)
 
         then:
-        schema.properties.keySet().count { it == 'name' } == 1
+        schema.get('properties').keySet().count { it == 'name' } == 1
     }
 
     def "buildObjectSchema stops at Object boundary"() {
@@ -63,7 +63,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(SimpleBean)
 
         then:
-        !schema.properties.containsKey('class')
+        !schema.get('properties').containsKey('class')
     }
 
     // --------------- nullable property detection ---------------
@@ -73,7 +73,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(BeanWithNullableGetter)
 
         then:
-        schema.properties.optional.nullable == true
+        schema.get('properties').optional.nullable == true
     }
 
     def "buildObjectSchema does not mark field without @Nullable as nullable"() {
@@ -81,7 +81,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(BeanWithNullableGetter)
 
         then:
-        !schema.properties.required.containsKey('nullable')
+        !schema.get('properties').required.containsKey('nullable')
     }
 
     def "buildObjectSchema does not add required list for plain Java/Groovy classes"() {
@@ -97,7 +97,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: String])
 
         then:
-        schema.properties.value == [type: 'string']
+        schema.get('properties').value == [type: 'string']
     }
 
     def "buildObjectSchema with typeBindings resolves List of TypeVariable field"() {
@@ -105,8 +105,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: Integer])
 
         then:
-        schema.properties.items.type == 'array'
-        schema.properties.items.items == [type: 'integer', format: 'int32']
+        schema.get('properties').items.type == 'array'
+        schema.get('properties').items.items == [type: 'integer', format: 'int32']
     }
 
     def "buildObjectSchema without typeBindings treats TypeVariable as object"() {
@@ -114,7 +114,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(GenericBean)
 
         then:
-        schema.properties.value == [type: 'object']
+        schema.get('properties').value == [type: 'object']
     }
 
     def "buildObjectSchema with schemas registry generates refs and registers nested complex types"() {
@@ -125,8 +125,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildObjectSchema(GenericBean, [T: SimpleBean], schemas)
 
         then:
-        schema.properties.value == ['$ref': '#/components/schemas/SimpleBean']
-        schema.properties.items == [type: 'array', items: ['$ref': '#/components/schemas/SimpleBean']]
+        schema.get('properties').value == ['$ref': '#/components/schemas/SimpleBean']
+        schema.get('properties').items == [type: 'array', items: ['$ref': '#/components/schemas/SimpleBean']]
         schemas.containsKey('SimpleBean')
         schemas['SimpleBean'].type == 'object'
     }
@@ -146,8 +146,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildCommandSchema(SimpleCommand)
 
         then:
-        schema.properties.containsKey('email')
-        schema.properties.containsKey('age')
+        schema.get('properties').containsKey('email')
+        schema.get('properties').containsKey('age')
     }
 
     def "buildCommandSchema maps field types correctly"() {
@@ -155,8 +155,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildCommandSchema(SimpleCommand)
 
         then:
-        schema.properties.email == [type: 'string']
-        schema.properties.age == [type: 'integer', format: 'int32']
+        schema.get('properties').email == [type: 'string']
+        schema.get('properties').age == [type: 'integer', format: 'int32']
     }
 
     def "buildCommandSchema handles missing constrainedProperties gracefully"() {
@@ -181,8 +181,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildCommandSchema(ConstrainedCommand)
 
         then:
-        schema.properties.color['enum'] == ['red', 'blue']
-        schema.properties.label.maxLength == 20
+        schema.get('properties').color['enum'] == ['red', 'blue']
+        schema.get('properties').label.maxLength == 20
     }
 
     def "buildCommandSchema maps min and max constraints"() {
@@ -190,8 +190,8 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildCommandSchema(ConstrainedCommand)
 
         then:
-        schema.properties.count.minimum == 1
-        schema.properties.count.maximum == 100
+        schema.get('properties').count.minimum == 1
+        schema.get('properties').count.maximum == 100
     }
 
     // --------------- constraintsOf ---------------
@@ -235,7 +235,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildDomainSchema(mockDomain)
 
         then:
-        schema.properties.id == [type: 'integer', format: 'int64']
+        schema.get('properties').id == [type: 'integer', format: 'int64']
     }
 
     def "buildDomainSchema includes string persistent property"() {
@@ -251,7 +251,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildDomainSchema(mockDomain)
 
         then:
-        schema.properties.title == [type: 'string']
+        schema.get('properties').title == [type: 'string']
     }
 
     def "buildDomainSchema maps one-to-many association to array"() {
@@ -267,7 +267,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildDomainSchema(mockDomain)
 
         then:
-        schema.properties.tags == [type: 'array', items: [type: 'object']]
+        schema.get('properties').tags == [type: 'array', items: [type: 'object']]
     }
 
     def "buildDomainSchema maps many-to-many association to array"() {
@@ -283,7 +283,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildDomainSchema(mockDomain)
 
         then:
-        schema.properties.categories == [type: 'array', items: [type: 'object']]
+        schema.get('properties').categories == [type: 'array', items: [type: 'object']]
     }
 
     def "buildDomainSchema maps many-to-one association to object"() {
@@ -299,7 +299,7 @@ class SchemaBuilderSpec extends Specification {
         def schema = SchemaBuilder.buildDomainSchema(mockDomain)
 
         then:
-        schema.properties.author == [type: 'object']
+        schema.get('properties').author == [type: 'object']
     }
 
     def "buildDomainSchema handles null identifier gracefully"() {
@@ -311,7 +311,7 @@ class SchemaBuilderSpec extends Specification {
 
         then:
         notThrown(Exception)
-        !schema.properties.containsKey('id')
+        !schema.get('properties').containsKey('id')
     }
 
     def "buildDomainSchema handles null persistentProperties gracefully"() {

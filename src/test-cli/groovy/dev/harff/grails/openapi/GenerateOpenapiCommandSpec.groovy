@@ -1,7 +1,7 @@
 package dev.harff.grails.openapi
 
 import grails.core.GrailsApplication
-import grails.dev.commands.ExecutionContext
+import org.apache.grails.core.cli.ExecutionContext
 import org.grails.build.parsing.CommandLineParser
 import org.grails.core.DefaultGrailsControllerClass
 import org.springframework.context.ConfigurableApplicationContext
