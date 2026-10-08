@@ -21,6 +21,9 @@ plugins {
 
 // Not Published to Gradle Plugin Portal
 apply plugin: "org.apache.grails.gradle.grails-plugin"
+// Grails 8 keeps application commands out of the runtime: generate-openapi ships in the companion
+// grails-openapi-cli artifact, which applications provision into their grailsCli classpath.
+apply plugin: "org.apache.grails.gradle.grails-plugin-cli"
 
 group = "io.github.gustavoharff"
 
@@ -47,6 +50,8 @@ dependencies {
     implementation "org.springframework.boot:spring-boot-starter-logging"
     console "org.apache.grails:grails-console"
     testImplementation "org.spockframework:spock-core"
+    // Gradle 9 no longer puts the JUnit Platform launcher on the test classpath by itself
+    testRuntimeOnly "org.junit.platform:junit-platform-launcher"
     testImplementation "net.bytebuddy:byte-buddy"
     testImplementation "org.objenesis:objenesis"
     testImplementation "org.jetbrains.kotlin:kotlin-stdlib:2.2.0"
@@ -56,7 +61,7 @@ dependencies {
 
 compileJava {
     classpath += configurations.javaCompileOnly
-    options.release = 17
+    options.release = 21
 }
 
 javadoc {
@@ -69,8 +74,38 @@ tasks.withType(Test).configureEach {
 
 
 
+// Maven Central rejects a jar published without sources and javadoc, and the cli feature the
+// Grails plugin registers comes without either.
+def cliSourcesJar = tasks.register('cliSourcesJar', Jar) {
+    archiveBaseName = 'grails-openapi-cli'
+    archiveClassifier = 'sources'
+    from sourceSets.cli.allSource
+}
+
+def cliJavadocJar = tasks.register('cliJavadocJar', Jar) {
+    archiveBaseName = 'grails-openapi-cli'
+    archiveClassifier = 'javadoc'
+    from tasks.named('cliJavadoc')
+}
+
+publishing {
+    publications {
+        cli(MavenPublication) {
+            from components.cli
+            artifact cliSourcesJar
+            artifact cliJavadocJar
+            artifactId = 'grails-openapi-cli'
+            // The companion depends on the plugin itself; as an alias, this publication leaves
+            // that project dependency to resolve to the plugin's own coordinate.
+            alias = true
+        }
+    }
+}
+
 mavenPublishing {
-    coordinates("io.github.gustavoharff", "grails-openapi", version)
+    // No coordinates(...) here: it forces one artifactId on every publication, which would
+    // publish the cli companion over the plugin itself. Group, version and the project name
+    // (settings.gradle) already give both their coordinates.
 
     publishToMavenCentral()
 

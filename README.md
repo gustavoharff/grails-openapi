@@ -11,16 +11,34 @@ Add the plugin to your Grails application's `build.gradle`:
 ```gradle
 buildscript {
     dependencies {
-        classpath "io.github.gustavoharff:grails-openapi:0.1.0"
+        classpath "io.github.gustavoharff:grails-openapi:1.0.0"
     }
+}
+
+apply plugin: "dev.harff.grails.openapi"
+
+dependencies {
+    implementation("io.github.gustavoharff:grails-openapi:1.0.0")
 }
 ```
 
+The `generate-openapi` command ships in a companion artifact,
+`io.github.gustavoharff:grails-openapi-cli`, which the Grails Gradle plugin adds to the
+application's `grailsCli` classpath by itself. An application that turns that off with
+`grails { cliAutoProvision = false }` declares the command tier itself:
+
 ```gradle
 dependencies {
-    implementation("io.github.gustavoharff:grails-openapi:0.1.0")
+    grailsCli "org.apache.grails:grails-core-cli"
+    grailsCli "org.apache.grails:grails-console"
+    grailsCli "io.github.gustavoharff:grails-openapi-cli:1.0.0"
 }
 ```
+
+| grails-openapi | Grails | Java |
+|---|---|---|
+| 1.x | 8.0+ | 21+ |
+| 0.x | 7.0.2+ | 17+ |
 
 ## Usage
 
@@ -92,7 +110,7 @@ requirement.
 The Gradle task drives the same command line you can type yourself:
 
 ```bash
-grails generate-openapi --title='Public API' --include='/public/v1/**' --output=build/openapi-public.yaml
+./gradlew runCommand "-Pargs=generate-openapi --title='Public API' --include=/public/v1/** --output=build/openapi-public.yaml"
 ```
 
 | Option | Description |
@@ -138,8 +156,8 @@ The plugin resolves URL mappings to endpoints, introspects controller annotation
 
 ## Requirements
 
-- Grails 7.0.2+
-- Java 17+
+- Grails 8.0+ (Grails 7 is supported by the 0.x releases)
+- Java 21+
 
 ## License
 

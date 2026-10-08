@@ -235,8 +235,8 @@ class ResponseResolverSpec extends Specification {
         then:
         def schema = schemas['PagedResult']
         schema != null
-        schema.properties.containsKey('data')
-        schema.properties.containsKey('paging')
+        schema.get('properties').containsKey('data')
+        schema.get('properties').containsKey('paging')
     }
 
     def "wrapper response class data property is typed as array"() {
@@ -248,7 +248,7 @@ class ResponseResolverSpec extends Specification {
         resolver.resolve(info, ep)
 
         then:
-        schemas['PagedResult'].properties.data.type == 'array'
+        schemas['PagedResult'].get('properties').data.type == 'array'
     }
 
     def "wrapper response class schema is referenced in response (not inlined as array)"() {
@@ -299,8 +299,8 @@ class ResponseResolverSpec extends Specification {
         def schema = schemas['TypedResultOfInteger']
         schema != null
         // List<T> with T=Integer → array of integer
-        schema.properties.items.type == 'array'
-        schema.properties.items.items == [type: 'integer', format: 'int32']
+        schema.get('properties').items.type == 'array'
+        schema.get('properties').items.items == [type: 'integer', format: 'int32']
     }
 
     def "two different bindings for the same generic class create two distinct schemas"() {
