@@ -34,6 +34,16 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: echo "RELEASE_VERSION=${{ github.event.inputs.version }}" >> $GITHUB_ENV
 
+      # Each branch publishes one major: 0.x (Grails 7) from v0, 1.x (Grails 8) from v1. A
+      # dispatch from the default branch or a tag on the wrong branch would otherwise publish
+      # this branch's code under the other line's version.
+      - name: Check the version belongs to this branch
+        run: |
+          case "$RELEASE_VERSION" in
+            0.*) ;;
+            *) echo "::error::$RELEASE_VERSION is not a 0.x version; release it from its own branch"; exit 1 ;;
+          esac
+
       - name: Publish to Maven Central
         run: ./gradlew publishAllPublicationsToMavenCentralRepository -Pversion=${{ env.RELEASE_VERSION }}
         env:
