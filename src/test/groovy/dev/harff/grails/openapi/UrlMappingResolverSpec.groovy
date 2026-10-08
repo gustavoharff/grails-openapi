@@ -280,6 +280,24 @@ class UrlMappingResolverSpec extends Specification {
         results[0].pathParams == ['id']
     }
 
+    def "a route the holder names in kebab case still verifies"() {
+        given: 'Grails 8 reports the controller as the URL spells it'
+        def ctrl = mockController(PlainAction, 'bookReviews')
+        controllers = [ctrl]
+
+        def holder = new StubHolder(
+            urlMappings: [mapping('/\$controller', 'POST', 'save', null)],
+            routes: [[uri: '/book-reviews', method: 'POST', controller: 'book-reviews', action: 'save']],
+        )
+
+        when:
+        def results = resolver.resolveAll(holder)
+
+        then:
+        results.size() == 1
+        results[0].path == '/book-reviews'
+    }
+
     // ---- Helpers ----
 
     /** Stands in for a Grails UrlMappingsHolder, which can both list and match its mappings. */
