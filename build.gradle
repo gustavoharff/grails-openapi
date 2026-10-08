@@ -74,10 +74,26 @@ tasks.withType(Test).configureEach {
 
 
 
+// Maven Central rejects a jar published without sources and javadoc, and the cli feature the
+// Grails plugin registers comes without either.
+def cliSourcesJar = tasks.register('cliSourcesJar', Jar) {
+    archiveBaseName = 'grails-openapi-cli'
+    archiveClassifier = 'sources'
+    from sourceSets.cli.allSource
+}
+
+def cliJavadocJar = tasks.register('cliJavadocJar', Jar) {
+    archiveBaseName = 'grails-openapi-cli'
+    archiveClassifier = 'javadoc'
+    from tasks.named('cliJavadoc')
+}
+
 publishing {
     publications {
         cli(MavenPublication) {
             from components.cli
+            artifact cliSourcesJar
+            artifact cliJavadocJar
             artifactId = 'grails-openapi-cli'
             // The companion depends on the plugin itself; as an alias, this publication leaves
             // that project dependency to resolve to the plugin's own coordinate.
