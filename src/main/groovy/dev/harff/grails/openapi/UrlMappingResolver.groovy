@@ -80,8 +80,12 @@ class UrlMappingResolver {
         }
         if (matches == null) return true
 
+        // Grails 8 names the controller as the URL spells it (book-reviews), Grails 7 by its
+        // logical name (bookReviews), so both sides are compared in kebab case.
+        String controllerPath = toKebabCase(ep.controllerName)
         return matches.toList().any { info ->
-            info?.controllerName == ep.controllerName && info?.actionName == ep.actionName
+            info?.controllerName && toKebabCase(info.controllerName as String) == controllerPath &&
+                info.actionName == ep.actionName
         }
     }
 
